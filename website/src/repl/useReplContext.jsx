@@ -138,7 +138,7 @@ export function useReplContext() {
       } else {
         /* const { code: randomTune, name } = await getRandomTune();
         code = randomTune; */
-        code = '$: s("[bd <hh oh>]*2").bank("tr909").dec(.4)';
+        code = 'note("c3 e3 g3").play()';
         msg = `Default code has been loaded`;
       }
       editor.setCode(code);

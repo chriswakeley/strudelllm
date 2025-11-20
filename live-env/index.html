@@ -1,0 +1,137 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Strudel Live Environment</title>
+  <script src="https://unpkg.com/@strudel/web@1.0.3"></script>
+  <script src="https://unpkg.com/@strudel/soundfonts@1.0.3"></script>
+  <style>
+    body {
+      background: #111;
+      color: #eee;
+      font-family: monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+
+    #status {
+      margin-top: 20px;
+      color: #888;
+    }
+
+    button {
+      padding: 10px 20px;
+      font-size: 1.2em;
+      cursor: pointer;
+      background: #333;
+      color: white;
+      border: 1px solid #555;
+      border-radius: 4px;
+    }
+
+    button:hover {
+      background: #444;
+    }
+
+    pre {
+      background: #222;
+      padding: 20px;
+      border-radius: 8px;
+      border: 1px solid #444;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Strudel Live Environment</h1>
+  <div>
+    <button id="start">Start Audio</button>
+    <button id="pause" style="display:none;">Pause</button>
+    <button id="play" style="display:none;">Play</button>
+    <button id="restart" style="display:none;">Restart</button>
+  </div>
+  <div id="status">Waiting for audio start...</div>
+  <pre id="code-display">// Code will appear here</pre>
+
+  <script>
+    let lastCode = '';
+    let isStarted = false;
+    let isPlaying = false;
+    let checkInterval = null;
+
+    async function checkCode() {
+      if (!isStarted) return;
+      try {
+        const response = await fetch('music.js?t=' + Date.now());
+        const text = await response.text();
+        if (text !== lastCode) {
+          lastCode = text;
+          document.getElementById('code-display').innerText = text;
+          document.getElementById('status').innerText = 'Updated: ' + new Date().toLocaleTimeString();
+          if (isPlaying) {
+            evaluate(text);
+          }
+        }
+      } catch (e) {
+        console.error('Error fetching code:', e);
+      }
+    }
+
+    document.getElementById('start').addEventListener('click', async () => {
+      document.getElementById('status').innerText = 'Loading samples...';
+      await strudel.initStrudel();
+
+      // Load piano samples from Strudel CDN
+      await samples('https://strudel.b-cdn.net/piano.json', 'https://strudel.b-cdn.net/piano/');
+      // Load VCSL samples (for Ocarina, etc.)
+      await samples('https://strudel.b-cdn.net/vcsl.json', 'https://strudel.b-cdn.net/VCSL/');
+      document.getElementById('status').innerText = 'Samples loaded (Piano + VCSL)!';
+      isStarted = true;
+      isPlaying = true;
+      document.getElementById('start').style.display = 'none';
+      document.getElementById('pause').style.display = 'inline';
+      document.getElementById('restart').style.display = 'inline';
+      document.getElementById('status').innerText = 'Audio started! Polling for changes...';
+      checkCode();
+      checkInterval = setInterval(checkCode, 1000);
+    });
+
+    document.getElementById('pause').addEventListener('click', () => {
+      strudel.hush();
+      isPlaying = false;
+      document.getElementById('pause').style.display = 'none';
+      document.getElementById('play').style.display = 'inline';
+      document.getElementById('status').innerText = 'Paused';
+    });
+
+    document.getElementById('play').addEventListener('click', () => {
+      if (lastCode) {
+        evaluate(lastCode);
+      }
+      isPlaying = true;
+      document.getElementById('play').style.display = 'none';
+      document.getElementById('pause').style.display = 'inline';
+      document.getElementById('status').innerText = 'Playing';
+    });
+
+    document.getElementById('restart').addEventListener('click', () => {
+      strudel.hush();
+      setTimeout(() => {
+        if (lastCode) {
+          evaluate(lastCode);
+        }
+        isPlaying = true;
+        document.getElementById('play').style.display = 'none';
+        document.getElementById('pause').style.display = 'inline';
+        document.getElementById('status').innerText = 'Restarted: ' + new Date().toLocaleTimeString();
+      }, 100);
+    });
+  </script>
+</body>
+
+</html>
