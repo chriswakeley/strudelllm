@@ -4,8 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Strudel Live Environment</title>
-  <script src="https://unpkg.com/@strudel/web@1.0.3"></script>
-  <script src="https://unpkg.com/@strudel/soundfonts@1.0.3"></script>
+  <script src="https://unpkg.com/@strudel/web"></script>
   <style>
     body {
       background: #111;
@@ -14,9 +13,14 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      height: 100vh;
+      justify-content: flex-start;
+      /* Changed from center to prevent clipping */
+      min-height: 100vh;
+      /* Changed from height to min-height */
       margin: 0;
+      padding: 20px;
+      /* Added padding */
+      box-sizing: border-box;
     }
 
     #status {
@@ -50,6 +54,19 @@
 <body>
   <h1>Strudel Live Environment</h1>
   <div>
+    <select id="file-selector"
+      style="padding: 10px; font-size: 1.2em; background: #333; color: white; border: 1px solid #555; border-radius: 4px; margin-right: 10px;">
+      <option value="music.js">music.js</option>
+      <option value="track1.js">track1.js</option>
+      <option value="track2.js">track2.js</option>
+      <option value="track3.js">track3.js</option>
+      <option value="track4.js">track4.js</option>
+      <option value="track5.js">track5.js</option>
+      <option value="track6.js">track6.js</option>
+      <option value="track7.js">track7.js</option>
+      <option value="track8.js">track8.js</option>
+      <option value="track9.js">track9.js</option>
+    </select>
     <button id="start">Start Audio</button>
     <button id="pause" style="display:none;">Pause</button>
     <button id="play" style="display:none;">Play</button>
@@ -67,14 +84,15 @@
     async function checkCode() {
       if (!isStarted) return;
       try {
-        const response = await fetch('music.js?t=' + Date.now());
+        const filename = document.getElementById('file-selector').value;
+        const response = await fetch(filename + '?t=' + Date.now());
         const text = await response.text();
         if (text !== lastCode) {
           lastCode = text;
           document.getElementById('code-display').innerText = text;
           document.getElementById('status').innerText = 'Updated: ' + new Date().toLocaleTimeString();
           if (isPlaying) {
-            evaluate(text);
+            await strudel.evaluate(text);
           }
         }
       } catch (e) {
@@ -87,10 +105,30 @@
       await strudel.initStrudel();
 
       // Load piano samples from Strudel CDN
-      await samples('https://strudel.b-cdn.net/piano.json', 'https://strudel.b-cdn.net/piano/');
+      await strudel.samples('https://strudel.b-cdn.net/piano.json', 'https://strudel.b-cdn.net/piano/');
       // Load VCSL samples (for Ocarina, etc.)
-      await samples('https://strudel.b-cdn.net/vcsl.json', 'https://strudel.b-cdn.net/VCSL/');
-      document.getElementById('status').innerText = 'Samples loaded (Piano + VCSL)!';
+      await strudel.samples('https://strudel.b-cdn.net/vcsl.json', 'https://strudel.b-cdn.net/VCSL/');
+      // Load drum machine samples (RolandTR808, RolandTR909, etc.)
+      await strudel.samples('https://strudel.b-cdn.net/tidal-drum-machines.json', 'https://strudel.b-cdn.net/tidal-drum-machines/machines/');
+      // Register General MIDI soundfonts (for gm_acoustic_guitar_nylon etc.)
+      try {
+        const { registerSoundfonts } = await import('./soundfonts.js');
+        registerSoundfonts();
+        document.getElementById('status').innerText = 'Samples + GM soundfonts loaded!';
+      } catch (e) {
+        console.error('Failed to load GM soundfonts', e);
+        document.getElementById('status').innerText = 'Samples loaded, but GM soundfonts failed.';
+      }
+      // Previous status message replaced by the GM soundfonts status above
+
+      // Expose all strudel exports as globals (like the REPL does)
+      // This includes pattern generators, functions, and utilities
+      Object.keys(strudel).forEach(key => {
+        if (typeof strudel[key] !== 'undefined' && key !== 'default') {
+          window[key] = strudel[key];
+        }
+      });
+
       isStarted = true;
       isPlaying = true;
       document.getElementById('start').style.display = 'none';
@@ -109,9 +147,9 @@
       document.getElementById('status').innerText = 'Paused';
     });
 
-    document.getElementById('play').addEventListener('click', () => {
+    document.getElementById('play').addEventListener('click', async () => {
       if (lastCode) {
-        evaluate(lastCode);
+        await strudel.evaluate(lastCode);
       }
       isPlaying = true;
       document.getElementById('play').style.display = 'none';
@@ -121,15 +159,20 @@
 
     document.getElementById('restart').addEventListener('click', () => {
       strudel.hush();
-      setTimeout(() => {
+      setTimeout(async () => {
         if (lastCode) {
-          evaluate(lastCode);
+          await strudel.evaluate(lastCode);
         }
         isPlaying = true;
         document.getElementById('play').style.display = 'none';
         document.getElementById('pause').style.display = 'inline';
         document.getElementById('status').innerText = 'Restarted: ' + new Date().toLocaleTimeString();
       }, 100);
+    });
+
+    document.getElementById('file-selector').addEventListener('change', () => {
+      lastCode = ''; // Force update
+      checkCode();
     });
   </script>
 </body>
